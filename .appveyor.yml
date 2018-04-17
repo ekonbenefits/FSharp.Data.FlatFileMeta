@@ -12,7 +12,7 @@ test_script:
   - ps: dotnet build /p:Version=$Env:APPVEYOR_BUILD_VERSION
 
 artifacts:
-  - path: 'src\**\*.nupkg'
+  - path: 'FSharp.Data.FlatFileMeta\bin\**\*.nupkg'
     name: NuGet
 
 deploy:
