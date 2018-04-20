@@ -23,6 +23,58 @@ open System.ComponentModel
 open System.Runtime.CompilerServices
 open FSharp.Interop.Compose.Linq
 
+
+[<AutoOpen>]
+module ValidationExtension =
+    type ErrorInfo = { row:int; column:int; name:string; description:string }
+
+    type Validation =
+        | Okay of obj
+        | Error of ErrorInfo list
+
+    type ValidationBuilder() =
+        member __.Zero() = Okay ()
+        member __.Yield(x) = Okay x
+        member __.Yield(x) = Error [x]
+        member __.YieldFrom(x:Validation) = x
+        member __.Combine(v1:Validation, v2:Validation) = 
+            match v1, v2 with
+                | Okay _, Okay _-> Okay ()
+                | Error x, Okay _
+                | Okay _, Error x -> Error x
+                | Error x, Error y -> Error (x @ y)
+                
+        member __.Delay(f) = f
+        member __.Run(f) = f()
+        
+        member this.While(guard, delayedExpr) =
+            let mutable result = this.Zero()
+            while guard() do
+                result <- this.Combine(result,this.Run(delayedExpr))
+            result
+            
+        member this.Using(resource:#IDisposable, body) =
+                    this.TryFinally(this.Delay(fun ()->body resource), 
+                        fun () -> match box resource with null -> () | _ -> resource.Dispose())  
+            
+        member this.For(sequence:seq<_>, body) =
+            this.Using(sequence.GetEnumerator(), 
+                   fun enum -> 
+                        this.While(enum.MoveNext, this.Delay(fun () -> body enum.Current)))
+        
+        member this.TryWith(delayedExpr, handler) =
+            try this.Run(delayedExpr)
+            with exn -> handler exn
+            
+        member this.TryFinally(delayedExpr, compensation) =
+            try this.Run(delayedExpr)
+            finally compensation()
+            
+      
+
+    let validate = ValidationBuilder()
+            
+    
 [<AutoOpen>]
 module CreateRowExtension =
     type CreateRowBuilder() =
@@ -70,32 +122,17 @@ module MaybeRowExtension =
         member __.Delay(f) = f
 
         member __.Run(f) = f()
-
-        member this.While(guard, body) =
-            if not (guard()) 
-            then this.Zero() 
-            else this.Bind( body(), fun () -> 
-                this.While(guard, body))  
-
-        member this.TryWith(body, handler) =
-            try this.ReturnFrom(body())
-            with e -> handler e
-
-        member this.TryFinally(body, compensation) =
-            try this.ReturnFrom(body())
-            finally compensation() 
-
-        member this.Using(disposable:#System.IDisposable, body) =
-            let body' = fun () -> body disposable
-            this.TryFinally(body', fun () -> 
-                match disposable with 
-                    | null -> () 
-                    | disp -> disp.Dispose())
-
-        member this.For(sequence:seq<_>, body) =
-            this.Using(sequence.GetEnumerator(),fun enum -> 
-                this.While(enum.MoveNext, 
-                    this.Delay(fun () -> body enum.Current)))
+    
+        member this.TryWith(delayedExpr, handler) =
+            try this.Run(delayedExpr)
+            with exn -> handler exn
+        member this.TryFinally(delayedExpr, compensation) =
+            try this.Run(delayedExpr)
+            finally compensation()
+        member this.Using(resource:#IDisposable, body) =
+            this.TryFinally(this.Delay(fun ()->body resource), 
+                fun () -> match box resource with null -> () | _ -> resource.Dispose())
+    
 
     let maybeRow = new MaybeRowBuilder()       
 
