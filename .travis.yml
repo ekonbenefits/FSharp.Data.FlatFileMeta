@@ -7,12 +7,13 @@ matrix:
     - os: osx
       osx_image: "xcode8.3"
 
-solution: FSharp.Core.Experimental.OptionBuilder.sln
+solution: FSharp.Data.FlatFileMeta.sln
 
 dotnet: 2.0.0
 
 install:
+  - cd Tests
   - dotnet restore
 
 script:
-  - dotnet build
+  - dotnet test
