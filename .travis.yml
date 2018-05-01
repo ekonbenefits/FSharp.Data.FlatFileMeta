@@ -12,7 +12,6 @@ solution: FSharp.Data.FlatFileMeta.sln
 dotnet: 2.0.0
 
 install:
-  - git submodule update --init --recursive
   - cd Tests
   - dotnet restore
 
