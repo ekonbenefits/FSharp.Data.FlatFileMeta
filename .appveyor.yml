@@ -6,7 +6,7 @@ build: off
 test: off
 
 install:
-  - ps: git submodule update --init --recursive
+  - ps: git submodule -q update --init
   - ps: cd Tests
   - ps: dotnet restore /p:Version=$Env:APPVEYOR_BUILD_VERSION
 
