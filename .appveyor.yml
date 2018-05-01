@@ -6,6 +6,7 @@ build: off
 test: off
 
 install:
+  - ps: cd Tests
   - ps: dotnet restore /p:Version=$Env:APPVEYOR_BUILD_VERSION
 
 test_script:
