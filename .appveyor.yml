@@ -11,7 +11,7 @@ install:
   - ps: dotnet restore /p:Version=$Env:APPVEYOR_BUILD_VERSION
 
 test_script:
-  - ps: dotnet build /p:Version=$Env:APPVEYOR_BUILD_VERSION
+  - ps: dotnet test /p:Version=$Env:APPVEYOR_BUILD_VERSION
 
 artifacts:
   - path: 'FSharp.Data.FlatFileMeta\bin\**\*.nupkg'
