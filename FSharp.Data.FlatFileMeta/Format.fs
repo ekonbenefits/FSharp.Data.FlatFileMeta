@@ -65,8 +65,27 @@ module Format =
         let setOptZerod length (value: int Nullable) =
             match value |> Option.ofNullable with
                 | Some (i) -> setZerod length i
-                | None -> Str.fillToLength length 
-
+                | None -> Str.fillToLength length
+                
+    module Int64 =
+        let getReq (value:string) = value |> int64
+        let getOpt (value:string) = 
+            value 
+                |> Helper.optionOfStringWhitespace
+                |> Option.map int64
+                |> Option.toNullable
+         
+        let setZerod length (value:int64) =
+            value 
+                |> string 
+                |> String.Full.padLeft length '0'
+                |> Valid.checkFinal length
+        
+        let setOptZerod length (value: int64 Nullable) =
+            match value |> Option.ofNullable with
+                | Some (i) -> setZerod length i
+                | None -> Str.fillToLength length
+                
     module Decimal =
         let toStringReq (decimalPlaces:int) (length:int) (value:decimal) =
             value * decimal(10.0 ** float(decimalPlaces))
@@ -138,7 +157,8 @@ module Format =
             |> Valid.checkFinal length
         
     let zerodInt:FormatPairs<_>  = (Int.getReq, Int.setZerod)
-
+    let zerodInt64:FormatPairs<_>  = (Int64.getReq, Int64.setZerod)
+    
     let reqDataCode<'T when 'T :> DataCode<'T> and  'T: ( new : unit -> 'T )> : FormatPairs<'T> = (Code.getCode, Code.setCode)
     let reqMoney:FormatPairs<_> = (Decimal.getReqMoney, Decimal.setReqMoney)
     let rightPadString:FormatPairs<_> = (Str.getRightTrim, Str.setRightPad)
