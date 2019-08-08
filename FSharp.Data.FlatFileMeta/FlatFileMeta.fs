@@ -22,6 +22,7 @@ open System
 open System.ComponentModel
 open System.Runtime.CompilerServices
 open FSharp.Interop.Compose.Linq
+open System.Runtime.InteropServices
 
 [<AutoOpen>]
 module CreateRowExtension =
@@ -387,8 +388,9 @@ type FlatRow(rowData:string) =
                                                                 data columnIdent.Key ln (this.GetType().Name), exn)
                         | None ->
                             raise <| InvalidDataException(sprintf "Unexpected value '%s' for '%s'" data columnIdent.Key , exn)
-            
-    member this.SetColumn<'T>(value:'T, [<CallerMemberName>] ?memberName: string) =
+    
+
+    member this.SetColumn<'T>(value:'T, [<Optional; DefaultParameterValue(false)>]autoTrim: bool, [<CallerMemberName; Optional; DefaultParameterValue("")>] ?memberName: string) =
         let start, columnIdent =
             match memberName with
                  | Some(k) ->
@@ -401,7 +403,8 @@ type FlatRow(rowData:string) =
                  
         let columnDef:Column<'T> = downcast columnIdent
         let stringVal = value |> columnDef.SetValue columnIdent.Length
-        let newSlice =stringVal.ToCharArray() |> Array.map string
+        let trimmedValue = if autoTrim then stringVal.Substring(0, columnIdent.Length) else stringVal
+        let newSlice = trimmedValue.ToCharArray() |> Array.map string
         let endSlice = start - 1 + columnIdent.Length
         this.Row.[start..endSlice] <- newSlice
         this.Changed()
