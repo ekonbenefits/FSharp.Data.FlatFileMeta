@@ -36,29 +36,28 @@ module FlatRowProvider =
         
         let rec foldFlat (state:FlatRow list) (item:FlatRow) =
             let children = 
-               seq{
-                  for key in item.ChildKeys() do
-                      yield! match item.ChildData(key) with
-                             | Other(_) -> []
-                             | Children (l) ->
-                                 l |> Enumerable.ofType<FlatRow> 
-                                   |> Seq.fold foldFlat state
-                             | Child (mc) -> match mc with
-                                             | NoRow -> []
-                                             | SomeRow(c) -> foldFlat state c
-               } |> List.ofSeq
-            state @ [item] @ children
+                item.ChildKeys()
+                   |> List.ofSeq
+                   |> List.collect(fun key ->
+                          match item.ChildData(key) with
+                          | Other(_) -> []
+                          | Children (l) ->
+                              l |> Enumerable.ofType<FlatRow> 
+                                |> Seq.fold foldFlat state
+                          | Child (mc) -> match mc with
+                                          | NoRow -> []
+                                          | SomeRow(c) -> foldFlat state c)
+                   
+            state @ (item::children)
         let flatList = head |> Seq.collect (foldFlat [])
         use writer = new StreamWriter(stream, Encoding.ASCII, 1024, true)
         writer.NewLine <- newlineTerm
         async {
-            do!flatList 
+            do! flatList 
                 |> AsyncSeq.ofSeq
-                |> AsyncSeq.iterAsync(fun row -> async {
-                                                            do! row.ToRawString() 
-                                                                |> writer.WriteLineAsync 
-                                                                |> Async.AwaitTask
-                                                       })
+                |> AsyncSeq.iterAsync(fun row -> row.ToRawString() 
+                                                    |> writer.WriteLineAsync
+                                                    |> Async.AwaitTask)
             do! writer.FlushAsync() |> Async.AwaitTask                                      
         }
 
