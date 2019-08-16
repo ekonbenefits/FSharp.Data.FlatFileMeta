@@ -48,7 +48,7 @@ module FlatRowProvider =
                                              | SomeRow(c) -> foldFlat state c
                } |> List.ofSeq
             state @ [item] @ children
-        let flatList = head |> Seq.collect (foldFlat []) |> List
+        let flatList = head |> Seq.collect (foldFlat [])
         use writer = new StreamWriter(stream, Encoding.ASCII, 1024, true)
         writer.NewLine <- newlineTerm
         async {
