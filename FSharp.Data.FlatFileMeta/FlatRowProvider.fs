@@ -43,10 +43,10 @@ module FlatRowProvider =
                           | Other(_) -> []
                           | Children (l) ->
                               l |> Enumerable.ofType<FlatRow> 
-                                |> Seq.fold foldFlat state
+                                |> Seq.fold foldFlat []
                           | Child (mc) -> match mc with
                                           | NoRow -> []
-                                          | SomeRow(c) -> foldFlat state c)
+                                          | SomeRow(c) -> foldFlat [] c)
                    
             state @ (item::children)
         let flatList = head |> Seq.collect (foldFlat [])
