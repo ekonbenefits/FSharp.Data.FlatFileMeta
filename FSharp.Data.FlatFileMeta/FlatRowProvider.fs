@@ -39,12 +39,12 @@ module FlatRowProvider =
                seq{
                   for key in item.ChildKeys() do
                       yield! match item.ChildData(key) with
-                             | Other(_) -> ()
+                             | Other(_) -> []
                              | Children (l) ->
                                  l |> Enumerable.ofType<FlatRow> 
                                    |> Seq.fold foldFlat state
                              | Child (mc) -> match mc with
-                                             | NoRow -> ()
+                                             | NoRow -> []
                                              | SomeRow(c) -> foldFlat state c
                } |> List.ofSeq
             state @ [item] @ children
