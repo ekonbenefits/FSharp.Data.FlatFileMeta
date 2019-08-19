@@ -30,37 +30,38 @@ module FlatRowProvider =
     open System.Text
     open System.Collections.Concurrent
 
-
     type internal WriteState = { node: FlatRow; accum: FlatRow list }
     
-    let asyncWriteFile (newlineTerm:string) (head:#FlatRow) (stream:Stream) =
+    let asyncWriteFileRepeating (newlineTerm:string) (head:#FlatRow seq) (stream:Stream) =
         
-        let rec foldFlat (state:List<FlatRow>) (item:FlatRow) =
-            state.Add(item)
-            for key in item.ChildKeys() do
-                match item.ChildData(key) with
-                    | Other(_) -> ()
-                    | Children (l) ->
-                        l |> Enumerable.ofType<FlatRow> 
-                          |> Seq.fold foldFlat state 
-                          |> ignore
-                    | Child (mc) -> match mc with
-                                    | NoRow -> ()
-                                    | SomeRow(c) -> foldFlat state c |> ignore
-            state
-        let flatList = foldFlat (List()) head
+        let rec foldFlat (state:FlatRow list) (item:FlatRow) =
+            let children = 
+                item.ChildKeys()
+                   |> List.ofSeq
+                   |> List.collect(fun key ->
+                          match item.ChildData(key) with
+                          | Other(_) -> []
+                          | Children (l) ->
+                              l |> Enumerable.ofType<FlatRow> 
+                                |> Seq.fold foldFlat []
+                          | Child (mc) -> match mc with
+                                          | NoRow -> []
+                                          | SomeRow(c) -> foldFlat [] c)
+                   
+            state @ (item::children)
+        let flatList = head |> Seq.collect (foldFlat [])
         use writer = new StreamWriter(stream, Encoding.ASCII, 1024, true)
         writer.NewLine <- newlineTerm
         async {
-            do!flatList 
+            do! flatList 
                 |> AsyncSeq.ofSeq
-                |> AsyncSeq.iterAsync(fun row -> async {
-                                                            do! row.ToRawString() 
-                                                                |> writer.WriteLineAsync 
-                                                                |> Async.AwaitTask
-                                                       })
+                |> AsyncSeq.iterAsync(fun row -> row.ToRawString() 
+                                                    |> writer.WriteLineAsync
+                                                    |> Async.AwaitTask)
             do! writer.FlushAsync() |> Async.AwaitTask                                      
         }
+
+    let asyncWriteFile (newlineTerm:string) (head:#FlatRow) (stream:Stream) = asyncWriteFileRepeating newlineTerm [head] stream
 
     let syncWriteFile newLineTerm (head:#FlatRow) (stream:Stream)  = 
          asyncWriteFile newLineTerm head stream |> Async.RunSynchronously
@@ -68,7 +69,7 @@ module FlatRowProvider =
     let syncParseLines (parser:string AsyncSeq -> #FlatRow MaybeRow Async) = 
             AsyncSeq.ofSeq >> parser >> Async.RunSynchronously
             
-    let asyncParseFile (parser:string AsyncSeq -> #FlatRow MaybeRow Async) (stream:Stream) =
+    let internal asyncParseFileGeneric (parser:string AsyncSeq -> 'a Async) (stream:Stream) =
         let seq = asyncSeq{
                         use reader = new StreamReader(stream,
                                                             Encoding.ASCII, 
@@ -84,10 +85,15 @@ module FlatRowProvider =
                                     yield line
                                 | None -> completed <- true
                   }
-        async {
-            return! seq |> parser
-        }
-     
+
+        seq |> parser
+
+    let asyncParseFileRepeating (parser:string AsyncSeq -> #FlatRow seq Async) (stream:Stream) =
+          asyncParseFileGeneric parser stream
+
+    let asyncParseFile (parser:string AsyncSeq -> #FlatRow MaybeRow Async) (stream:Stream) =
+         asyncParseFileGeneric parser stream
+      
      
     let syncParseFile parser stream = 
          asyncParseFile parser stream |> Async.RunSynchronously

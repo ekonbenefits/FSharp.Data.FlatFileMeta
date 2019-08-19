@@ -40,11 +40,15 @@ module Format =
         let getRightTrim = String.trimEnd [|' '|]
         let setRightPad length value  = 
                 value
+                    |> Option.ofObj
+                    |> Option.defaultValue String.Empty
                     |> String.Full.padRight length ' '
                     |> Valid.checkFinal length
         let getLeftTrim = String.trimStart [|' '|]
         let setLeftPad length value =
                 value
+                    |> Option.ofObj
+                    |> Option.defaultValue String.Empty
                     |> String.Full.padLeft length ' '  
                     |> Valid.checkFinal length
         
