@@ -106,7 +106,7 @@ type ColumnIdentifier(key: string, length:int, placeHolder:bool) =
     member __.Length = length
     member __.PlaceHolder = placeHolder
     
-type Column<'T>(key: string, length:int, getValue: string -> 'T, setValue: int -> 'T -> string) =
+type Column<'T>(key: string, length:int, getValue: Format.FormatGet<'T>, setValue: Format.FormatSet<'T>) =
     inherit ColumnIdentifier(key, length, false)
     member __.GetValue = getValue
     member __.SetValue = setValue
@@ -402,9 +402,8 @@ type FlatRow(rowData:string) =
             invalidOp "AllowMutation is not set on root"
                  
         let columnDef:Column<'T> = downcast columnIdent
-        let stringVal = value |> columnDef.SetValue columnIdent.Length
-        let trimmedValue = if autoTrim then stringVal.Substring(0, columnIdent.Length) else stringVal
-        let newSlice = trimmedValue.ToCharArray() |> Array.map string
+        let stringVal = value |> columnDef.SetValue (columnIdent.Length, autoTrim)
+        let newSlice = stringVal.ToCharArray() |> Array.map string
         let endSlice = start - 1 + columnIdent.Length
         this.Row.[start..endSlice] <- newSlice
         this.Changed()
