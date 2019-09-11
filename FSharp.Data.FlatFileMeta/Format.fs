@@ -18,39 +18,43 @@ namespace FSharp.Data.FlatFileMeta
 
 open System
 open FSharp.Interop.Compose.System
-open System.Runtime.CompilerServices
 
 [<RequireQualifiedAccess>]
 module Format =
-
-    type FormatPairs<'T> = (string -> 'T) * (int -> 'T -> string)
+    type FormatGet<'T> = (string -> 'T)
+    type FormatSet<'T> =((int * bool) -> 'T -> string)
+    type FormatPairs<'T> = FormatGet<'T> * FormatSet<'T>
 
     module Valid =
-        let checkFinal length (value:string) =
+        let checkFinal (length, autoTrim) (value:string) =
             if length <> value.Length then
-                invalidOp (sprintf "'%s' is '%i' long, which is longer than field of '%i'."
-                                value value.Length length)
-            value
+                if autoTrim then
+                    value.Substring(0, length)
+                else
+                    invalidOp (sprintf "'%s' is '%i' columns long, which does not match the specification of '%i'."
+                                    value value.Length length)
+            else 
+                value
 
     module Str =
-        let fillToLengthWith char length =  Array.init length (fun _ -> char) |> String
+        let fillToLengthWith char (length,_) =  Array.init length (fun _ -> char) |> String
         let fillToLength = fillToLengthWith ' '
         
     
         let getRightTrim = String.trimEnd [|' '|]
-        let setRightPad length value  = 
+        let setRightPad (length, autoTrim) value  = 
                 value
                     |> Option.ofObj
                     |> Option.defaultValue String.Empty
                     |> String.Full.padRight length ' '
-                    |> Valid.checkFinal length
+                    |> Valid.checkFinal (length, autoTrim)
         let getLeftTrim = String.trimStart [|' '|]
-        let setLeftPad length value =
+        let setLeftPad (length, autoTrim) value =
                 value
                     |> Option.ofObj
                     |> Option.defaultValue String.Empty
                     |> String.Full.padLeft length ' '  
-                    |> Valid.checkFinal length
+                    |> Valid.checkFinal (length, autoTrim)
         
     module Int =
         let getReq (value:string) = value |> int
@@ -60,11 +64,11 @@ module Format =
                 |> Option.map int
                 |> Option.toNullable
          
-        let setZerod length (value:int) =
+        let setZerod (length, autoTrim) (value:int) =
             value 
                 |> string 
                 |> String.Full.padLeft length '0'
-                |> Valid.checkFinal length
+                |> Valid.checkFinal (length, autoTrim)
         
         let setOptZerod length (value: int Nullable) =
             match value |> Option.ofNullable with
@@ -79,11 +83,11 @@ module Format =
                 |> Option.map int64
                 |> Option.toNullable
          
-        let setZerod length (value:int64) =
+        let setZerod (length, autoTrim) (value:int64) =
             value 
                 |> string 
                 |> String.Full.padLeft length '0'
-                |> Valid.checkFinal length
+                |> Valid.checkFinal (length, autoTrim)
         
         let setOptZerod length (value: int64 Nullable) =
             match value |> Option.ofNullable with
@@ -91,7 +95,7 @@ module Format =
                 | None -> Str.fillToLength length
                 
     module Decimal =
-        let toStringReq (decimalPlaces:int) (length:int) (value:decimal) =
+        let toStringReq (decimalPlaces:int) (length) (value:decimal) =
             value * decimal(10.0 ** float(decimalPlaces))
                 |> truncate 
                 |> int 
@@ -108,7 +112,7 @@ module Format =
         open System.Globalization
         let parseReq format value = DateTime.ParseExact(value, format, CultureInfo.InvariantCulture)
         
-        let toStringReq format (length:int) (value:DateTime) = 
+        let toStringReq format (length) (value:DateTime) = 
             value.ToString(format, CultureInfo.InvariantCulture) 
             |> Valid.checkFinal length
             
@@ -131,13 +135,13 @@ module Format =
                   |> Option.map intToJulian 
                   |> Option.toNullable
         
-        let setOptJulianDate (length:int) (value: DateTime Nullable) =
+        let setOptJulianDate (length) (value: DateTime Nullable) =
            let optValue = Option.ofNullable value
            match optValue with
                           | Some(d) -> d.DayOfYear |> int |> Int.setZerod length
                           | None -> length |> Str.fillToLength
         
-        let toStringOpt format (length:int) (value:DateTime Nullable)=
+        let toStringOpt format (length) (value:DateTime Nullable)=
            let optValue = Option.ofNullable value
            match optValue with
                | Some(d) -> d |> toStringReq format length
