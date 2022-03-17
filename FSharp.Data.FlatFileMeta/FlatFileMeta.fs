@@ -264,7 +264,9 @@ type FlatRow(rowData:string) =
             columnLength <- totalLength
             columnKeys <- orderedKeys
             rawData <- match rowInput with
-                        | Some (row) -> row |> Array.ofSeq |> Array.map string
+                        | Some (row) -> 
+                            row.PadRight totalLength
+                            |> Array.ofSeq |> Array.map string
                         | None -> Array.init totalLength (fun _ -> " ")
             columnMap <- mapMeta
             this.PostSetup()
