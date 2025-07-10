@@ -25,7 +25,20 @@ open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 
 [<AbstractClass>]
-type DataCode()=
+type DataCode() =
+    interface IEquatable<DataCode> with
+        member this.Equals(other: DataCode) =
+            if isNull (box other) then false
+            else String.Equals(this.Code, other.Code, StringComparison.Ordinal)
+
+    override this.Equals(obj: obj) =
+        match obj with
+        | :? DataCode as other -> (this :> IEquatable<DataCode>).Equals(other)
+        | _ -> false
+
+    override this.GetHashCode() =
+        if isNull this.Code then 0 else this.Code.GetHashCode()
+
     static member op_Implicit(a: DataCode) =
         a.Code
     
