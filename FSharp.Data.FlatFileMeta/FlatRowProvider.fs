@@ -150,14 +150,11 @@ module FlatRowProvider =
 [<AutoOpen>]
 module setupExtensions =
 
-    
-    type SetupMetaBuilder(fr:FlatRow) = 
+    [<AbstractClass>]
+    type SetupMetaBuilderBase(fr:FlatRow) = 
         member __.Yield(x) = {columns = [];length =0}
         
         member __.Delay(x) = lazy (x())
-        
-        member __.Run(x) =
-            FlatRowProvider.setup fr x
                 
         [<CustomOperation("checkLength")>] 
         member __.CheckLength (meta, x) = {meta with length = x }
@@ -177,4 +174,19 @@ module setupExtensions =
             
            { meta with columns = meta.columns @ [Column(key, length, getValue, setValue)]}
            
+      
+    type SetupMetaBuilder(fr:FlatRow) = 
+        inherit SetupMetaBuilderBase(fr)
+        
+        member __.Run(x) =
+            FlatRowProvider.setup fr x
+               
     let setupMetaFor (fr) = SetupMetaBuilder(fr)
+    
+    type SetupMetaBuilderRaw(fr:FlatRow) = 
+        inherit SetupMetaBuilderBase(fr)
+        
+        member __.Run(x: DefinedMeta Lazy) =
+           x 
+
+    let preSetupMetaFor (fr) = SetupMetaBuilderRaw(fr)
