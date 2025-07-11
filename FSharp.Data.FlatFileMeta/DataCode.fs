@@ -45,7 +45,9 @@ type DataCode() =
     member val Code:string = null with get,set
     
     abstract IsKnown: bool
-        
+    
+    override this.ToString() = sprintf "%s (%s)" (this.GetType().Name) this.Code
+            
     member this.ToRawString() = this.Code  
     
 [<AbstractClass>]
