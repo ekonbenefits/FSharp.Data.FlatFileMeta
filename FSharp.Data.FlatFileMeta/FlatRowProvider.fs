@@ -124,20 +124,26 @@ module FlatRowProvider =
                 if sumLength <> meta.length then
                     raise <| InvalidDataException(sprintf "Data columns sum to %i which is not the expected value %i of %A" sumLength meta.length row)
                 
-                let result = meta.length,
-                             meta.columns 
+                let realKeys = meta.columns 
                                 |> Seq.filter (fun x->not x.PlaceHolder) 
                                 |> Seq.map (fun x->x.Key)
                                 |> Enumerable.toList
-                                :> IList<_>,
-                             meta.columns 
-                                 |> Seq.scan (fun state i -> i.Length + state) 0
-                                 |> Seq.zip meta.columns
-                                 |> Seq.filter (fun (c, _) ->  not c.PlaceHolder)
-                                 |> Seq.map (fun (c, i) -> c.Key, (i,c))
-                                 |> Map.ofSeq
-                                 :> IDictionary<_,_>
-                let _,keys,_ = result
+                                :> IList<_>
+                let fullIdentifiers =
+                     meta.columns 
+                         |> Seq.scan (fun state i -> i.Length + state) 0
+                         |> Seq.zip meta.columns
+                         |> Seq.map (fun (c, i) -> c.Key, (i,c))
+                
+                
+                let result = {
+                                  rowLength = meta.length
+                                  orderedColumns = realKeys
+                                  columnMap = fullIdentifiers |> Map.ofSeq :> IDictionary<_,_>
+                                  orderedRawColumns = fullIdentifiers |> Seq.map(fst) |> Enumerable.toList :> IList<_>
+                              }
+                              
+                let keys = result.orderedRawColumns
                 if keys |> Seq.distinct |> Seq.length <> keys.Count then
                     raise <| InvalidDataException(sprintf "duplicate column names defined in %A" row)
                 cache.[k] <- result
@@ -162,7 +168,7 @@ module setupExtensions =
         /// Defines width of data to ignore
         [<CustomOperation("placeholder")>] 
         member __.Placeholder (meta, length) =
-           { meta with columns = meta.columns @ [ColumnIdentifier("", length, true)]}
+           { meta with columns = meta.columns @ [ColumnIdentifier(Guid.NewGuid().ToString("D"), length, true)]}
 
         /// Defines width of property and how to format.
         [<CustomOperation("columns")>] 

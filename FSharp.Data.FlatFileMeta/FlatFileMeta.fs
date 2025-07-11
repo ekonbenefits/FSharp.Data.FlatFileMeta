@@ -111,8 +111,12 @@ type Column<'T>(key: string, length:int, getValue: Format.FormatGet<'T>, setValu
     member __.GetValue = getValue
     member __.SetValue = setValue
 
-
-type ProcessedMeta = int * string IList * IDictionary<string, int * ColumnIdentifier>
+type ProcessedMeta = {
+    rowLength: int
+    orderedColumns: string IList
+    columnMap: IDictionary<string, int * ColumnIdentifier>
+    orderedRawColumns: string IList
+}
 
 type DefinedMeta = { columns: ColumnIdentifier list; length :int }
 
@@ -189,6 +193,7 @@ type FlatRow(rowData:string) =
     let rowInput = Helper.optionOfStringEmpty rowData
     let mutable rawData: string array = Array.empty
     let mutable columnKeys: IList<string> = upcast List()
+    let mutable rawColumnKeys: IList<string> = upcast List()
     let mutable columnMap: IDictionary<string, int * ColumnIdentifier> = upcast Map.empty 
     let mutable columnLength: int = 0
     let mutable allowMutation = rowInput.IsNone
@@ -259,7 +264,8 @@ type FlatRow(rowData:string) =
 
     member private this.LazySetup() =
         if columnMap.Count = 0 then
-            let totalLength, orderedKeys, mapMeta = this.Setup()
+            let meta = this.Setup()
+            let totalLength, orderedKeys, mapMeta = meta.rowLength, meta.orderedColumns, meta.columnMap
       
             columnLength <- totalLength
             columnKeys <- orderedKeys
@@ -269,6 +275,7 @@ type FlatRow(rowData:string) =
                             |> Array.ofSeq |> Array.map string
                         | None -> Array.init totalLength (fun _ -> " ")
             columnMap <- mapMeta
+            rawColumnKeys <- meta.orderedRawColumns
             this.PostSetup()
 
        
@@ -282,7 +289,11 @@ type FlatRow(rowData:string) =
      
     member this.Keys() =
         this.LazySetup()
-        columnKeys   
+        columnKeys
+        
+    member this.RawKeys() =
+        this.LazySetup()
+        rawColumnKeys   
         
     member private this.Row =
         this.LazySetup()
@@ -305,7 +316,7 @@ type FlatRow(rowData:string) =
             
     member this.MetaData(key:string) =
         let start, columnIdent = this.ColumnMap.[key]
-        struct (start, columnIdent.Length)
+        struct (start, columnIdent.Length, columnIdent)
           
     member internal this.HelperGetAllowMutation () =
         maybeRow { let! root = this.Root
@@ -320,13 +331,11 @@ type FlatRow(rowData:string) =
                                 children.[key] <- Ranked(rank, d)
                                 NoRow
                                 
-    member private __.HelperGetOther (rank:int) (defaultValue:'T Lazy) (key:string) =
+    member private __.HelperGetOther (rank:int) (transform: obj option -> 'T) (key:string) =
                     match children.TryGetValue(key) with
-                        | true,Ranked(_,Other(v)) -> downcast v
+                        | true,Ranked(_,Other(v)) -> Some v |> transform
                         | true,_ -> invalidOp "Different type for this name already added"
-                        | ______ -> let d = defaultValue.Force()
-                                    children.[key] <- Ranked(rank, Other(rank, box d))
-                                    d
+                        | ______ -> None |> transform
                                 
     member private this.HelperGetChildren<'T when 'T :> FlatRow> (rank:int) (key:string) : 'T IList  =
               match children.TryGetValue(key) with
@@ -359,6 +368,12 @@ type FlatRow(rowData:string) =
                 children.[key] <- Ranked(rank,Child(mcr))
                 if this.HelperGetAllowMutation () then
                     this.Changed()
+                    
+    member this.GetOther(rank:int, (transform: obj option -> 'T), [<CallerMemberName>] ?memberName: string) : 'T =
+               let key = 
+                   memberName
+                      |> Option.defaultWith Helper.raiseMissingCompilerMemberName
+               this.HelperGetOther rank transform key
          
     member this.SetOther(rank:int, value:obj, [<CallerMemberName>] ?memberName: string) : unit = 
                let key = 
