@@ -102,14 +102,19 @@ module MaybeRowExtension =
 
 
 type ColumnIdentifier(key: string, length:int, placeHolder:bool) =
-    member __.Key = key
-    member __.Length = length
-    member __.PlaceHolder = placeHolder
+    member _.Key = key
+    member _.Length = length
+    member _.PlaceHolder = placeHolder
+    abstract GetUnTypedValue: string -> obj
+    default _.GetUnTypedValue (value: string) : obj = box value
+    
     
 type Column<'T>(key: string, length:int, getValue: Format.FormatGet<'T>, setValue: Format.FormatSet<'T>) =
     inherit ColumnIdentifier(key, length, false)
     member __.GetValue = getValue
     member __.SetValue = setValue
+    override __.GetUnTypedValue(value: string) : obj =
+        getValue value |> box
 
 type ProcessedMeta = {
     rowLength: int
@@ -304,7 +309,7 @@ type FlatRow(rowData:string) =
         columnMap
     
     member this.Data(key:string):obj=
-        this.GetColumn(key) |> box
+        this.HelperGetUntypedData(key)
         
     member this.ToRawString() =
         this.Row |> String.concat ""
@@ -383,7 +388,30 @@ type FlatRow(rowData:string) =
                if this.HelperGetAllowMutation () then
                    this.Changed()
             
-    member this.GetColumn([<CallerMemberName>] ?memberName: string) : 'T =
+    member private this.HelperGetUntypedData(memberName: string) : obj =
+        let start, columnIdent =
+            match memberName |> Option.ofObj with
+                | Some(k) -> 
+                        try 
+                            this.ColumnMap.[k]
+                        with exn -> raise <| KeyNotFoundException(sprintf "Schema missing %s in %A" k this, exn)
+                | None -> Helper.raiseMissingCompilerMemberName()
+        let endSlice = start - 1 + columnIdent.Length 
+        let slice = this.Row.[start..endSlice]
+        let data = slice |> String.concat ""
+        let columnDef = columnIdent
+        try 
+            data |> columnDef.GetUnTypedValue 
+        with
+            exn -> 
+                    match this.ParsedLineNumber with
+                        | Some(ln) -> 
+                            raise <| InvalidDataException(sprintf "Unexpected value '%s' for '%s' at record %i %s" 
+                                                                data columnIdent.Key ln (this.GetType().Name), exn)
+                        | None ->
+                            raise <| InvalidDataException(sprintf "Unexpected value '%s' for '%s'" data columnIdent.Key , exn)
+                            
+        member this.GetColumn([<CallerMemberName>] ?memberName: string) : 'T =
         let start, columnIdent =
             match memberName with
                 | Some(k) -> 
@@ -405,7 +433,6 @@ type FlatRow(rowData:string) =
                                                                 data columnIdent.Key ln (this.GetType().Name), exn)
                         | None ->
                             raise <| InvalidDataException(sprintf "Unexpected value '%s' for '%s'" data columnIdent.Key , exn)
-    
 
     member this.SetColumn<'T>(value:'T, [<Optional; DefaultParameterValue(false)>]autoTrim: bool, [<CallerMemberName; Optional; DefaultParameterValue("")>] ?memberName: string) =
         let start, columnIdent =
