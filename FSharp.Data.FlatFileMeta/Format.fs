@@ -95,18 +95,41 @@ module Format =
                 | None -> Str.fillToLength length
                 
     module Decimal =
-        let toStringReq (decimalPlaces:int) (length) (value:decimal) =
-            value * decimal(10.0 ** float(decimalPlaces))
-                |> truncate 
-                |> int 
-                |> Int.setZerod length
+        let toStringReq (decimalPlaces:int) (length) (value: decimal) =
+                value * decimal(10.0 ** float(decimalPlaces))
+                |> truncate
+                |> int64
+                |> Int64.setZerod length
         
-        let parseReq (decimalPlaces:int) value =
-            let intVal = Int.getReq value
-            decimal(intVal) / decimal(10.0 ** float(decimalPlaces))
+        let parseReq (decimalPlaces:int) (value: string): decimal =
+                let intVal = Int64.getReq value
+                decimal(intVal) / decimal(10.0 ** float(decimalPlaces))
+                
+                
+        let toDecStringOpt(decimalPlaces:int) (length,autoTrim) (value:decimal Nullable) =
+            value
+            |> Option.ofNullable
+            |> Option.map (fun v ->
+                                v * decimal(10.0 ** float(decimalPlaces))
+                                    |> truncate 
+                                    |> int64 
+                                    |> Int64.setZerod (length, autoTrim))
+            |> Option.defaultWith (fun () -> String.replicate length " ")
+        
+        let parseDecOpt (decimalPlaces:int) value =
+            let iv = Int64.getOpt value
+            iv |> Option.ofNullable
+            |> Option.map (fun intVal -> decimal(intVal) / decimal(10.0 ** float(decimalPlaces)))
+            |> Option.toNullable
 
         let getReqMoney = parseReq 2
         let setReqMoney = toStringReq 2
+        
+        let reqPlaces (decimalPlaces:int) : FormatPairs<_> =
+            (parseReq decimalPlaces, toStringReq decimalPlaces)
+            
+        let optPlaces (decimalPlaces:int) : FormatPairs<_> =
+            (parseDecOpt decimalPlaces, toDecStringOpt decimalPlaces)
 
     module DateAndTime =
         open System.Globalization
@@ -145,16 +168,17 @@ module Format =
            let optValue = Option.ofNullable value
            match optValue with
                | Some(d) -> d |> toStringReq format length
-               | None -> length |> Str.fillToLength 
-        
-        let getYYMMDD = parseReq "yyMMdd"
-        let setYYMMDD = toStringReq "yyMMdd"      
-        
-        let getOptYYMMDD = parseOpt "yyMMdd"
-        let setOptYYMMDD = toStringOpt "yyMMdd"    
-        
-        let getOptHHMM = parseOpt "HHmm"
-        let setOptHHMM = toStringOpt "HHmm"
+               | None -> length |> Str.fillToLength
+               
+        let optFormat format:FormatPairs<_>  =
+            let getOpt = parseOpt format
+            let setOpt = toStringOpt format
+            (getOpt, setOpt)
+            
+        let  reqFormat format:FormatPairs<_> =
+            let getReq = parseReq format
+            let setReq = toStringReq format
+            (getReq, setReq)
      
     module Code =
         let getCode<'T when 'T :> DataCode<'T> and  'T: ( new : unit -> 'T )> value : 'T =
@@ -171,7 +195,7 @@ module Format =
     let reqMoney:FormatPairs<_> = (Decimal.getReqMoney, Decimal.setReqMoney)
     let rightPadString:FormatPairs<_> = (Str.getRightTrim, Str.setRightPad)
     let leftPadString:FormatPairs<_>  = (Str.getLeftTrim, Str.setLeftPad)
-    let reqYYMMDD:FormatPairs<_>  = (DateAndTime.getYYMMDD, DateAndTime.setYYMMDD)
-    let optYYMMDD:FormatPairs<_>  = (DateAndTime.getOptYYMMDD, DateAndTime.setOptYYMMDD)
+    
+    
+
     let optJulian:FormatPairs<_> = (DateAndTime.getOptJulianDate, DateAndTime.setOptJulianDate)
-    let optHHMM:FormatPairs<_>  = (DateAndTime.getOptHHMM, DateAndTime.setOptHHMM)

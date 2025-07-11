@@ -288,3 +288,4 @@ __pycache__/
 *.xsd.cs
 
 .ionide/
+.DS_Store
