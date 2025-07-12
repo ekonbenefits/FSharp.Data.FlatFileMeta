@@ -46,7 +46,7 @@ type DataCode() =
     
     abstract IsKnown: bool
     
-    override this.ToString() = sprintf "%s (%s)" (this.GetType().Name) this.Code
+    override this.ToString() = sprintf "%s <%s>" this.Code (this.GetType().Name)
             
     member this.ToRawString() = this.Code  
     
@@ -76,6 +76,11 @@ type DataCode< 'T when 'T :> DataCode<'T> and  'T: ( new : unit -> 'T ) >()=
                 try
                     DataCode<'T>.Meta.Value.valueMap.[this.Code].Key
                 with _ -> null
+                
+    override this.ToString() =
+        match this.Key with
+        | null -> base.ToString()
+        | key -> sprintf "%s (%s)" this.Code key
       
     override this.IsKnown = this.Key |> isNull |> not
     
