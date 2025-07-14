@@ -63,7 +63,7 @@ type DataCode< 'T when 'T :> DataCode<'T> and  'T: ( new : unit -> 'T ) >()=
                                         |> Seq.map (fun x->x.Key, x)
                                         |> Map.ofSeq
                 let valueMap = meta.codes
-                                        |> Seq.map (fun x->x.Key, x)
+                                        |> Seq.map (fun x->x.Code, x)
                                         |> Map.ofSeq          
                 DataCode<'T>.Meta <- Some <| { 
                                            keyMap = keyMap
